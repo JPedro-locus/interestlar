@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Universo Interstelar – Planetas com Frases (Responsivo)</title>
+  <style>
+    :root{
+      --bg1:#070916; /* fundo profundo */
+      --bg2:#0b0f26; /* fundo suave */
+      --accent:#ffb86b; /* brilho do disco */
+      --txt:#e6e6f0;
+      --muted:#99a0b3;
+      --ring:rgba(255,255,255,0.08);
+
+      /* Escalas fluidas */
+      --fz-sm: clamp(12px, 1.8vw, 14px);
+      --fz-md: clamp(14px, 2vw, 16px);
+      --fz-lg: clamp(18px, 3.2vw, 22px);
+      --radius: 14px;
+      --pad: 10px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      color:var(--txt);
+      background:
+        radial-gradient(1200px 800px at 70% 20%, #0d1330 0%, transparent 60%),
+        radial-gradient(1000px 700px at 20% 80%, #0a0d25 0%, transparent 65%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      overflow:hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Estrelas em canvas cobrem toda a tela */
+    #stars{position:fixed; inset:0; z-index:0; pointer-events:none;}
+
+    /* Universo central escalável */
+    #universe{
+      position:fixed; left:50%; top:50%;
+      transform:translate(-50%,-50%) scale(1);
+      transform-origin:center;
+      width:200vmin; height:200vmin; /* área ampla para órbitas grandes */
+      z-index:1;
+      touch-action:none; /* melhor pinch-zoom custom */
+    }
+
+    /* Buraco negro (Gargantua vibe) */
+    .blackhole{
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:160px; height:160px; border-radius:50%;
+      background: radial-gradient(circle at 50% 50%, #000 25%, #02030a 30%, #000 55%);
+      box-shadow: 0 0 60px 20px rgba(0,0,0,0.8) inset, 0 0 50px 25px rgba(0,0,0,0.6);
+      cursor:pointer;
+    }
+    .blackhole::before{ /* anel brilhante */
+      content:""; position:absolute; inset:-22px; border-radius:50%;
+      background:
+        conic-gradient(from 0deg,
+          rgba(255,255,255,0.9) 0deg,
+          var(--accent) 35deg,
+          #ffdcb5 70deg,
+          rgba(255,255,255,0.95) 110deg,
+          #fbbf8b 150deg,
+          rgba(255,255,255,0.95) 220deg,
+          var(--accent) 260deg,
+          #ffdcb5 300deg,
+          rgba(255,255,255,0.9) 360deg);
+      filter: blur(1.2px) drop-shadow(0 0 20px #fdcfa1);
+      animation: disk 36s linear infinite;
+      opacity:.95;
+    }
+    .blackhole::after{ /* gravidade/lente sutil */
+      content:""; position:absolute; inset:-80px; border-radius:50%;
+      background: radial-gradient(circle at 50% 50%, rgba(253,205,140,0.15), transparent 70%);
+      filter: blur(12px);
+      animation: pulse 8s ease-in-out infinite;
+    }
+
+    @keyframes disk{to{transform:rotate(360deg)}}
+    @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}
+
+    /* Órbitas (apenas desenham o círculo opcional) */
+    .ring{
+      position:absolute; left:50%; top:50%;
+      border:1px dashed var(--ring); border-radius:50%;
+      width:calc(var(--r)*2); height:calc(var(--r)*2);
+      margin-left:calc(var(--r)*-1); margin-top:calc(var(--r)*-1);
+      pointer-events:none; filter: blur(.2px);
+    }
+
+    /* Contêiner que gira (sem tamanho) */
+    .orbit{
+      position:absolute; left:50%; top:50%; width:0; height:0;
+      transform: translate(-50%,-50%) rotate(var(--a));
+      transform-origin:center; animation: spin var(--d) linear infinite;
+    }
+    @keyframes spin{to{transform:translate(-50%,-50%) rotate(calc(var(--a) + 360deg));}}
+
+    /* Planetas */
+    .planet{
+      position:absolute; left:0; top:0;
+      width:var(--s); height:var(--s); border-radius:50%;
+      transform: translateX(var(--r));
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2) 30%, transparent 31%),
+        radial-gradient(circle at 65% 65%, var(--c2), var(--c1));
+      box-shadow:
+        0 0 12px rgba(255,255,255,.12),
+        0 0 24px rgba(255,255,255,.08) inset;
+      outline:none; border:none; cursor:pointer;
+    }
+    .planet:focus{ box-shadow:0 0 0 2px rgba(255,255,255,.35), 0 0 22px rgba(255,255,255,.25) inset; }
+
+    /* Controles */
+    .controls{
+      position:fixed; left:50%; top:calc(16px + env(safe-area-inset-top, 0px)); transform:translateX(-50%);
+      z-index:3; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+      background: rgba(10,14,35,.55);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:var(--radius); padding:10px 12px; backdrop-filter: blur(8px);
+      max-width: min(96vw, 760px);
+    }
+    .controls .btn{
+      appearance:none; border:1px solid rgba(255,255,255,.15);
+      background:rgba(255,255,255,.06); color:var(--txt);
+      padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:600; font-size:var(--fz-sm);
+      min-height: 36px;
+    }
+    .controls .btn:hover{background:rgba(255,255,255,.12)}
+    .controls .meter{font-variant-numeric:tabular-nums; color:var(--muted); font-size:var(--fz-sm)}
+    .controls label{display:flex; align-items:center; gap:6px; color:var(--muted); font-size:var(--fz-sm)}
+
+    /* Tooltip de instrução */
+    .hint{ position:fixed; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); left:50%; transform:translateX(-50%);
+      color:#c9ccdb; font-size:var(--fz-sm); opacity:.85; z-index:3; text-align:center; padding:0 12px; }
+
+    /* Modal de frase */
+    .modal{
+      position:fixed; inset:0; display:none; place-items:center; z-index:4;
+      background: radial-gradient(1000px 600px at 50% 50%, rgba(6,8,22,.92) 0, rgba(6,8,22,.75) 35%, rgba(6,8,22,.55) 60%, rgba(6,8,22,.35) 100%);
+      backdrop-filter: blur(6px);
+      padding: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    }
+    .modal.show{display:grid}
+    .card{
+      width:min(800px, 94vw); max-width:94vw;
+      border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border-radius:16px; padding:20px; box-shadow:0 10px 40px rgba(0,0,0,.45);
+      text-align:center;
+    }
+    .card h2{margin:4px 0 10px; font-weight:800; letter-spacing:.3px; font-size:var(--fz-lg)}
+    .phrase{ font-size:clamp(16px, 4.4vw, 20px); line-height:1.6; margin:14px 0 16px }
+    .actions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+    .ghost{background:transparent; border:1px solid rgba(255,255,255,.2)}
+
+    /* Corações flutuantes quando abre a frase */
+    .heart{ position:fixed; width:16px; height:16px; pointer-events:none; z-index:5; }
+    .heart::before{
+      content:""; position:absolute; inset:0; background: currentColor; color:#ff6ea3;
+      transform: rotate(45deg); border-radius:2px;
+      box-shadow: 0 0 8px rgba(255,110,163,.6);
+    }
+    .heart::after,
+    .heart i{ content:""; position:absolute; background: currentColor; color:#ff6ea3;
+      width:16px; height:16px; border-radius:50%; top:-8px; left:0; }
+    .heart i{ left:8px; top:0 }
+
+    /* --- Mobile tweaks --- */
+    @media (max-width: 640px) {
+      .controls{
+        left: 50%; right:auto; top:auto; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+        justify-content:center; gap:6px; padding:8px 10px; border-radius:12px; width: calc(100vw - 24px);
+      }
+      .controls .btn{ min-width:44px; min-height:44px; padding:10px 12px; }
+      .controls label{ gap:8px }
+      .hint{ bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+      .card{ padding:16px }
+      .actions .btn{ flex: 1 0 auto; }
+    }
+
+    /* Efeito de sucção e singularidade */
+    #aperture{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(0); width:20vmin; height:20vmin; border-radius:50%; z-index:5; pointer-events:none; background: radial-gradient(closest-side, #000 0 60%, rgba(0,0,0,.98) 70%, rgba(0,0,0,.92) 85%, transparent 100%); filter: blur(2px); opacity:1; }
+    #aperture.open{ transition: transform 1.2s cubic-bezier(.2,.7,.2,1); transform: translate(-50%,-50%) scale(80); }
+    body.suction #universe{ transition: transform 1.2s cubic-bezier(.2,.7,.2,1), filter 1.2s ease; transform: translate(-50%,-50%) scale(.25); filter: blur(2px) brightness(.8); }
+
+    #singularity{ position:fixed; inset:0; display:none; place-items:center; z-index:6; background:
+      radial-gradient(1200px 800px at 50% 50%, rgba(0,0,0,.96) 0, rgba(0,0,0,.92) 40%, rgba(0,0,0,.88) 75%, rgba(0,0,0,.82) 100%);
+      overflow:hidden; }
+    #singularity.show{ display:grid; }
+    #singularity .well{ position:relative; width:min(1100px, 96vw); height:min(1100px, 84vh); display:grid; grid-template-rows:auto 1fr auto; gap:12px; align-items:center; justify-items:center; }
+    #singularity h2{ margin:0; font-size:clamp(18px, 3.6vw, 28px); opacity:.9 }
+    #singularity .cloud{ position:relative; width:100%; height:100%; contain:layout paint; }
+    .word{ position:absolute; white-space:nowrap; font-weight:700; opacity:0; transform:translate(-50%,-50%) scale(.9); filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); will-change: transform, opacity; font-size: var(--fs, clamp(14px, 2.4vw, 20px)); line-height:1.05 }
+    .word.show{ animation: appear 900ms ease forwards, drift 9s ease-in-out infinite; }
+    @keyframes appear{ from{ opacity:0; transform:translate(-50%,-50%) scale(.8) rotate(-8deg)} to{ opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg)} }
+    @keyframes drift{ 0%,100%{ transform:translate(var(--x), var(--y)) scale(1) rotate(var(--rot)); } 50%{ transform:translate(calc(var(--x) + 6px), calc(var(--y) - 4px)) scale(1.05) rotate(calc(var(--rot) + 3deg)); } }
+
+    #exitSingularity{ position:absolute; bottom:max(16px, env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); }
+  </style>
+</head>
+<body>
+  <canvas id="stars"></canvas>
+
+  <div id="universe">
+    <div class="blackhole" title="Buraco negro"></div>
+    <!-- Anéis e planetas são injetados por JS -->
+  </div>
+
+  <div class="controls" role="toolbar" aria-label="Controles do universo">
+    <button class="btn" id="zoomOut" aria-label="Diminuir zoom">−</button>
+    <button class="btn" id="zoomIn" aria-label="Aumentar zoom">+</button>
+    <span class="meter" id="zoomMeter" aria-live="polite">100%</span>
+    <label><input type="checkbox" id="toggleRings" checked /> mostrar órbitas</label>
+    <button class="btn" id="randomPlanet" aria-label="Surpreender">Surpreender</button>
+    <button class="btn ghost" id="reset" aria-label="Centralizar">Reset</button>
+  </div>
+
+  <div class="hint">use a roda do mouse ou os botões para aproximar/afastar · toque em um planeta ✨</div>
+
+  <!-- Portal de sucção / transição -->
+  <div id="aperture" aria-hidden="true"></div>
+
+  <!-- Modal de frases -->
+  <div class="modal" id="modal" aria-modal="true" role="dialog">
+    <div class="card">
+      <h2 id="title">Para você, meu amor</h2>
+      <div class="phrase" id="phrase"></div>
+      <div class="actions">
+        <button class="btn" id="prev">Anterior</button>
+        <button class="btn" id="next">Próxima</button>
+        <button class="btn ghost" id="close">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cena da singularidade com "Eu te amo" em 100 línguas -->
+  <div id="singularity" aria-modal="true" role="dialog" aria-label="Mensagem no interior do buraco negro">
+    <div class="well">
+      <h2>Eu te amo — em 100 línguas ✨</h2>
+      <div class="cloud" id="loveCloud"></div>
+      <button class="btn ghost" id="exitSingularity" aria-label="Voltar">Voltar</button>
+    </div>
+  </div>
+
+<script>
+// ======== Estrelas (canvas) ========
+(function initStars(){
+  const c = document.getElementById('stars');
+  const ctx = c.getContext('2d');
+  let w, h, stars=[];
+  function starCount(){
+    // Ajusta a quantidade conforme área e DPR para melhor desempenho em mobile
+    const area = window.innerWidth * window.innerHeight;
+    const base = area / 8000; // ~45 em 360x640, ~96 em 720p, ~150+ em telas maiores
+    return Math.max(120, Math.min(350, Math.round(base)));
+  }
+  let COUNT = starCount();
+  function resize(){ w = c.width = window.innerWidth; h = c.height = window.innerHeight; COUNT = starCount(); create(); }
+  function rand(a,b){ return Math.random()*(b-a)+a }
+  function resetStar(s){ s.x = Math.random()*w; s.y=Math.random()*h; s.r=rand(0.2,1.2); s.a=rand(0.4,1); s.tw = rand(0.005,0.02); s.t = Math.random()*Math.PI*2 }
+  function create(){ stars = new Array(COUNT).fill(0).map(()=>({})); stars.forEach(resetStar); }
+  function draw(){ ctx.clearRect(0,0,w,h); for(const s of stars){ s.t+=s.tw; const alpha = s.a*(0.6+0.4*Math.sin(s.t)); ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fillStyle=`rgba(255,255,255,${alpha})`; ctx.fill(); } requestAnimationFrame(draw); }
+  window.addEventListener('resize', resize);
+  resize(); draw();
+})();
+
+// ======== Frases de amor (50) ========
+const phrases = [
+  "Você é a minha constante em qualquer universo.",
+  "Entre bilhões de estrelas, escolho brilhar ao seu lado.",
+  "Seu sorriso curva o espaço e o tempo dentro de mim.",
+  "Se o amor fosse gravidade, você seria o meu centro.",
+  "Contigo, até o silêncio tem música.",
+  "Meu futuro favorito sempre tem você.",
+  "Seu abraço é meu planeta habitável.",
+  "Você é o ponto de luz nas minhas noites mais longas.",
+  "Eu te amo em todos os multiversos possíveis.",
+  "Seus olhos são constelações que nunca canso de mapear.",
+  "Você transforma qualquer lugar em casa.",
+  "Meu coração faz órbita em volta do seu.",
+  "Nosso amor desafia qualquer distância.",
+  "Com você, até o tempo tem gosto de agora.",
+  "Quero ser a calma que cabe no seu peito.",
+  "Você é o brilho que meus dias procuram.",
+  "Te amar é a aventura mais bonita que já vivi.",
+  "Você é poesia que o universo sussurrou pra mim.",
+  "Seu riso é o meu fenômeno favorito.",
+  "Em você, encontro todos os meus começos.",
+  "Seu toque desliga meus medos.",
+  "Você é o norte que o meu coração escolheu.",
+  "Quando penso em sorte, penso em você.",
+  "Seu amor cabe em mim como se sempre tivesse sido seu lugar.",
+  "Você me apresenta novas formas de ser feliz.",
+  "Eu te amo daqui até o infinito — e de volta.",
+  "Você é a resposta bonita de todas as minhas perguntas.",
+  "Nosso laço é feito de céu e coragem.",
+  "Eu escolheria você em todas as linhas do tempo.",
+  "Seu beijo tem o gosto de futuro.",
+  "Sua voz é o endereço da minha paz.",
+  "Te admiro no detalhe e no todo.",
+  "Você é o acidente feliz do destino que deu certo.",
+  "Com você, até o caos dança bonito.",
+  "Seu jeito é minha paisagem favorita.",
+  "Amar você é meu melhor hábito.",
+  "Seu olhar tem o mapa das minhas respostas.",
+  "Você é meu ponto de descanso no meio do universo.",
+  "Nada é tão grande quanto o que sinto por você.",
+  "Seu carinho muda a gravidade dos meus dias.",
+  "Eu te amo com calma, com pressa, com sempre.",
+  "Você me ensina o idioma da ternura.",
+  "Ao seu lado, sou minha versão mais bonita.",
+  "Você é meu hoje favorito.",
+  "No seu abraço, tudo encontra lugar.",
+  "Você é a coincidência que escolhi chamar de destino.",
+  "Cada detalhe seu me apaixona outra vez.",
+  "Te amar é simples como respirar e imenso como o céu.",
+  "Seu amor cabe no meu, do tamanho do infinito.",
+  "Com você, cada minuto é estrela cadente."
+];
+
+// ======== Eu te amo em 100 línguas ========
+const love100 = [
+  "Português — Eu te amo",
+  "Inglês — I love you",
+  "Espanhol — Te amo",
+  "Francês — Je t’aime",
+  "Italiano — Ti amo",
+  "Alemão — Ich liebe dich",
+  "Holandês — Ik hou van jou",
+  "Sueco — Jag älskar dig",
+  "Norueguês — Jeg elsker deg",
+  "Dinamarquês — Jeg elsker dig",
+  "Finlandês — Rakastan sinua",
+  "Islandês — Ég elska þig",
+  "Irlandês — Taim i ngrá leat",
+  "Escocês (Gaélico) — Tha gaol agam ort",
+  "Basco — Maite zaitut",
+  "Catalão — T’estimo",
+  "Galego — Quérote",
+  "Romeno — Te iubesc",
+  "Português (PT) — Amo-te",
+  "Croata — Volim te",
+  "Sérvio — Волим те (Volim te)",
+  "Bósnio — Volim te",
+  "Esloveno — Ljubim te",
+  "Eslovaco — Ľúbim ťa",
+  "Tcheco — Miluji tě",
+  "Polonês — Kocham cię",
+  "Ucraniano — Я тебе кохаю",
+  "Russo — Я тебя люблю",
+  "Búlgaro — Обичам те",
+  "Grego — Σ’ αγαπώ",
+  "Turco — Seni seviyorum",
+  "Húngaro — Szeretlek",
+  "Albanês — Të dua",
+  "Macedônio — Те сакам",
+  "Lituano — Aš tave myliu",
+  "Letão — Es tevi mīlu",
+  "Estoniano — Ma armastan sind",
+  "Maltês — Inħobbok",
+  "Armênio — Սիրում եմ քեզ",
+  "Georgiano — მიყვარხარ",
+  "Hebraico — אני אוהב אותך",
+  "Árabe — أحبك (uḥibbuka/ki)",
+  "Persa — دوستت دارم",
+  "Curdo — Ez hej te dikim",
+  "Urdu — میں تم سے پیار کرتا/کرتی ہوں",
+  "Hindi — मैं तुमसे प्यार करता/करती हूँ",
+  "Bengali — আমি তোমায় ভালোবাসি",
+  "Panjabi — ਮੈਂ ਤੈਨੂੰ ਪਿਆਰ ਕਰਦਾ/ਕਰਦੀ ਹਾਂ",
+  "Nepalês — म तिमीलाई माया गर्छु",
+  "Sinhala — මම ඔයාට ආදරෙයි",
+  "Tâmil — நான் உன்னை காதலிக்கிறேன்",
+  "Telugu — నేను నిన్ను ప్రేమిస్తున్నాను",
+  "Canarês — ನಾನು ನಿನ್ನನ್ನು ಪ್ರೀತಿಸುತ್ತೇನೆ",
+  "Marathi — मी तुझ्यावर प्रेम करतो/करते",
+  "Gujarati — હું તને પ્રેમ કરું છું",
+  "Malayalam — ഞാൻ നിന്നെ സ്നേഹിക്കുന്നു",
+  "Tailandês — ฉันรักคุณ",
+  "Lao — ຂ້ອຍຮັກເຈົ້າ",
+  "Khmer — ខ្ញុំ​ស្រលាញ់​អ្នក",
+  "Vietnamita — Anh/Em yêu em/anh",
+  "Indonésio — Aku cinta kamu",
+  "Malaio — Saya cinta padamu",
+  "Filipino — Mahal kita",
+  "Japonês — 愛してる / 愛しています",
+  "Coreano — 사랑해",
+  "Chinês (Mandarim) — 我爱你",
+  "Chinês (Cantonês) — 我愛你",
+  "Mongol — Би чамд хайртай",
+  "Tibetano — ང་ཁྱེད་ལ་དགའ་གནང་།",
+  "Birmês — ကျွန်တော်က မင်းကိုချစ်တယ်",
+  "Uzbeque — Men seni sevaman",
+  "Cazaque — Мен сені жақсы көремін",
+  "Quirguiz — Мен сени сүйөм",
+  "Tadjique — Ман туро дӯст медорам",
+  "Pastó — زه تا سره مینه لرم",
+  "Suaíli — Nakupenda",
+  "Zulu — Ngiyakuthanda",
+  "Xhosa — Ndiyakuthanda",
+  "Iorubá — Mo nifẹ rẹ",
+  "Hauçá — Ina son ka/ki",
+  "Amárico — እወድሃለሁ",
+  "Tigrínia — የፍቅር ቃል",
+  "Somali — Waan ku jeclahay",
+  "Africâner — Ek is lief vir jou",
+  "Khoisan — // ‘I love you’ (adapt.)",
+  "Maori — Aroha atu ahau ki a koe",
+  "Samoano — Ou te alofa ia te oe",
+  "Taitiano — Ua here vau ia oe",
+  "Havaiano — Aloha wau iā ‘oe",
+  "Fijiano — Au domoni iko",
+  "Tonganês — ‘Ofa atu",
+  "Guanxi (Zhuang) — Gvaz ndei raeuj",
+  "Esperanto — Mi amas vin",
+  "Latim — Te amo",
+  "Gótico (reconstr.) — Lubjō þuk",
+  "Catalão Val. — T’estime",
+  "Bretão — Me az kar",
+  "Luxemburguês — Ech hunn dech gär",
+  "Uolofe — Dama la nek",
+  "Crioulo cabo-verdiano — N’ta amó’",
+  "Guarani — Rohayhu",
+  "Quéchua — Kuyayki",
+  "Aimará — Munsma",
+  "Mapudungun — Inayen",
+  "Náuatle — Nimitztlazohtla"
+];
+
+// ======== Universo: criar 50 órbitas/planetas ========
+const uni = document.getElementById('universe');
+const ringsVisibleToggle = document.getElementById('toggleRings');
+let planets = [];
+
+function createPlanets(){
+  // Limpa anteriores em caso de resize/orientationchange
+  planets.forEach(({ring, orbit})=>{ ring.remove(); orbit.remove(); });
+  planets = [];
+
+  const maxR = Math.min(window.innerWidth, window.innerHeight) * 0.9; // vmin escalável
+  const start = 80; // raio mínimo
+  const end = maxR * 0.9; // raio máximo
+  const step = (end - start) / (phrases.length + 2);
+
+  for(let i=0;i<phrases.length;i++){
+    const r = Math.max(56, Math.round(start + step * (i+1) + (Math.random()*step*0.4 - step*0.2)));
+    const dur = (24 + Math.random()*64 + i*0.2).toFixed(2) + 's';
+    const angle = Math.floor(Math.random()*360) + 'deg';
+    const baseSize = 10 + Math.random()*16;
+    const size = (Math.max(9, baseSize * (Math.min(window.innerWidth, window.innerHeight) / 600))).toFixed(0) + 'px';
+
+    // anel de órbita (opcional)
+    const ring = document.createElement('div');
+    ring.className='ring';
+    ring.style.setProperty('--r', r + 'px');
+    ring.style.display = ringsVisibleToggle.checked ? 'block' : 'none';
+    uni.appendChild(ring);
+
+    // contêiner de rotação
+    const orbit = document.createElement('div');
+    orbit.className = 'orbit';
+    orbit.style.setProperty('--a', angle);
+    orbit.style.setProperty('--d', dur);
+
+    // planeta
+    const p = document.createElement('button');
+    p.className='planet';
+    p.setAttribute('aria-label', `Planeta ${i+1}`);
+    p.style.setProperty('--r', r + 'px');
+    p.style.setProperty('--s', size);
+    // cores com harmonia
+    const hue = Math.floor(Math.random()*360);
+    const c1 = `hsl(${hue} 70% 45%)`;
+    const c2 = `hsl(${(hue+40)%360} 70% 60%)`;
+    p.style.setProperty('--c1', c1);
+    p.style.setProperty('--c2', c2);
+    p.dataset.index = i;
+
+    // eventos
+    p.addEventListener('click', ()=> openPhrase(i));
+    p.addEventListener('keyup', (e)=>{ if(e.key==='Enter' || e.key===' ') openPhrase(i)});
+
+    orbit.appendChild(p);
+    uni.appendChild(orbit);
+    planets.push({ring, orbit, p, r, i});
+  }
+}
+
+createPlanets();
+window.addEventListener('resize', createPlanets);
+window.addEventListener('orientationchange', createPlanets);
+
+// ======== Construir nuvem de palavras (espiral dourada) ========
+const cloud = document.getElementById('loveCloud');
+function buildLoveCloud(){
+  cloud.innerHTML = '';
+  const W = cloud.clientWidth || cloud.offsetWidth || 800;
+  const H = cloud.clientHeight || cloud.offsetHeight || 600;
+  const cx = W/2, cy = H/2;
+
+  // Parâmetros da espiral dourada (Vogel) com controle de espaçamento
+  const goldenDeg = 137.50776405003785;
+  const goldenRad = goldenDeg * Math.PI/180;
+  const baseStep = Math.max(16, Math.min(W, H) * 0.06); // espaçamento radial forte p/ evitar sobreposição
+  const boxes = []; // bounding boxes já colocadas
+
+  // função util para checar colisão
+  const collides = (x,y,w,h)=> boxes.some(b => !(x+w < b.x || b.x+b.w < x || y+h < b.y || b.y+b.h < y));
+
+  love100.forEach((text, i)=>{
+    // tamanho base de fonte adaptado ao viewport
+    const fs = Math.round(Math.max(16, Math.min(24, Math.min(W,H)*0.03 - (i*0.02))));
+
+    // criar elemento invisível para medir
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = text;
+    span.style.visibility = 'hidden';
+    span.style.left = cx + 'px';
+    span.style.top = cy + 'px';
+    span.style.setProperty('--fs', fs + 'px');
+    cloud.appendChild(span);
+    const rect = span.getBoundingClientRect();
+    let w2 = rect.width; let h2 = rect.height;
+
+    // posição candidata na espiral
+    let r = Math.sqrt(i+1) * baseStep;
+    let theta = i * goldenRad;
+    let x = cx + r * Math.cos(theta) - w2/2;
+    let y = cy + r * Math.sin(theta) - h2/2;
+
+    // empurra adiante na espiral até não colidir
+    let guard = 0;
+    const extraStep = fs * 0.9;
+    while (collides(x,y,w2,h2) && guard < 400) {
+      r += extraStep;
+      theta += goldenRad * 0.15; // giro pequeno pra variar
+      x = cx + r * Math.cos(theta) - w2/2;
+      y = cy + r * Math.sin(theta) - h2/2;
+      guard++;
+    }
+
+    boxes.push({x, y, w: w2, h: h2});
+
+    // aplica transform final relativo ao centro
+    span.style.visibility = 'visible';
+    span.style.setProperty('--x', `${x + w2/2 - cx}px`);
+    span.style.setProperty('--y', `${y + h2/2 - cy}px`);
+    span.style.setProperty('--rot', `${((i%7)-3)}deg`);
+    const hue = (i*21) % 360;
+    span.style.color = `hsl(${hue} 75% 78%)`;
+    span.style.animationDelay = `${Math.min(1200, i*24)}ms`;
+    requestAnimationFrame(()=> span.classList.add('show'));
+  });
+}
+window.addEventListener('resize', ()=>{ if(document.getElementById('singularity').classList.contains('show')) buildLoveCloud(); });
+
+// ======== Zoom & navegação ========
+const meter = document.getElementById('zoomMeter');
+const coarse = window.matchMedia('(pointer:coarse)').matches;
+let scale = 1; const minS = coarse ? 0.7 : 0.5, maxS = coarse ? 2.2 : 3, stepS = coarse ? 0.08 : 0.1;
+function setScale(s){
+  scale = Math.min(maxS, Math.max(minS, s));
+  uni.style.transform = `translate(-50%,-50%) scale(${scale})`;
+  meter.textContent = Math.round(scale*100)+'%';
+}
+setScale(1);
+
+document.getElementById('zoomIn').onclick = ()=> setScale(scale + stepS);
+
+document.getElementById('zoomOut').onclick = ()=> setScale(scale - stepS);
+
+document.getElementById('reset').onclick = ()=> setScale(1);
+
+// roda do mouse
+window.addEventListener('wheel', (e)=>{
+  if(e.ctrlKey) return; // respeita zoom do browser
+  e.preventDefault();
+  const delta = Math.sign(e.deltaY);
+  setScale(scale + (delta < 0 ? stepS : -stepS));
+},{passive:false});
+
+// pinch para mobile
+let pinchStart = null;
+window.addEventListener('touchstart', (e)=>{
+  if(e.touches.length===2){
+    pinchStart = distance(e.touches[0], e.touches[1]);
+  }
+},{passive:true});
+window.addEventListener('touchmove', (e)=>{
+  if(e.touches.length===2 && pinchStart){
+    e.preventDefault();
+    const d = distance(e.touches[0], e.touches[1]);
+    const ratio = d / pinchStart;
+    setScale(scale * Math.pow(ratio, 0.08)); // suaviza
+    pinchStart = d;
+  }
+},{passive:false});
+window.addEventListener('touchend', ()=>{ pinchStart=null });
+function distance(a,b){ const dx=a.clientX-b.clientX, dy=a.clientY-b.clientY; return Math.hypot(dx,dy) }
+
+// Mostrar/ocultar órbitas
+ringsVisibleToggle.addEventListener('change', ()=>{
+  for(const pl of planets){ pl.ring.style.display = ringsVisibleToggle.checked ? 'block' : 'none' }
+});
+
+// Surpreender: foca um planeta aleatório e abre frase
+const btnRandom = document.getElementById('randomPlanet');
+btnRandom.addEventListener('click', ()=>{
+  const pick = Math.floor(Math.random()*planets.length);
+  openPhrase(pick, true);
+});
+
+// ======== Modal ========
+const modal = document.getElementById('modal');
+const phraseEl = document.getElementById('phrase');
+const titleEl = document.getElementById('title');
+let current = 0;
+
+function openPhrase(idx, focusZoom=false){
+  current = idx;
+  phraseEl.textContent = '“' + phrases[idx] + '”';
+  titleEl.textContent = `Planeta ${idx+1} · Para você, meu amor`;
+  modal.classList.add('show');
+  if(focusZoom) setScale(Math.min(2.0, Math.max(1.2, scale)));
+  sprinkleHearts(16);
+}
+
+function closeModal(){ modal.classList.remove('show'); }
+
+// navegação
+const prev = document.getElementById('prev');
+const next = document.getElementById('next');
+const closeBtn = document.getElementById('close');
+prev.onclick = ()=> openPhrase((current - 1 + phrases.length) % phrases.length);
+next.onclick = ()=> openPhrase((current + 1) % phrases.length);
+closeBtn.onclick = closeModal;
+
+window.addEventListener('keydown', (e)=>{
+  if(!modal.classList.contains('show')) return;
+  if(e.key==='Escape') closeModal();
+  if(e.key==='ArrowRight') next.click();
+  if(e.key==='ArrowLeft') prev.click();
+});
+
+// ======== Efeitos de coração ========
+function sprinkleHearts(n){
+  const { innerWidth:w, innerHeight:h } = window;
+  for(let i=0;i<n;i++){
+    const el = document.createElement('div');
+    el.className='heart';
+    const x = Math.random()*w, y = Math.random()*h*0.6 + h*0.2;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    const scaleH = 0.6 + Math.random()*1.2;
+    const dur = 1200 + Math.random()*2200;
+    const dx = (Math.random()-0.5) * 120;
+    const dy = - (60 + Math.random()*160);
+    el.style.opacity = .95;
+    el.style.transform = `translate(0,0) scale(${scaleH}) rotate(${Math.random()*40-20}deg)`;
+    document.body.appendChild(el);
+
+    const start = performance.now();
+    function anim(t){
+      const p = Math.min(1, (t-start)/dur);
+      const ease = p<.5? 2*p*p : -1+(4-2*p)*p; // easeInOutQuad
+      el.style.transform = `translate(${dx*ease}px, ${dy*ease}px) scale(${scaleH*(1+0.15*p)}) rotate(${(Math.random()*40-20)*(1-p)}deg)`;
+      el.style.opacity = 1 - p;
+      if(p<1) requestAnimationFrame(anim); else el.remove();
+    }
+    requestAnimationFrame(anim);
+  }
+}
+
+// Clique no buraco negro: sucção para a singularidade
+const bh = document.querySelector('.blackhole');
+function triggerSuction(){
+  if(document.getElementById('singularity').classList.contains('show')) return;
+  document.body.classList.add('suction');
+  document.getElementById('aperture').classList.add('open');
+  setTimeout(()=>{
+    document.getElementById('singularity').classList.add('show');
+    buildLoveCloud();
+  }, 900);
+}
+if(bh){
+  bh.addEventListener('click', triggerSuction);
+  // ainda suportamos dblclick para reset enquanto fora da singularidade
+  bh.addEventListener('dblclick', ()=> setScale(1));
+  let pressTimer = null;
+  bh.addEventListener('touchstart', ()=>{ pressTimer = setTimeout(triggerSuction, 400); }, {passive:true});
+  bh.addEventListener('touchend', ()=>{ if(pressTimer) clearTimeout(pressTimer); }, {passive:true});
+}
+
+// Sair da singularidade
+const exitBtn = document.getElementById('exitSingularity');
+exitBtn.addEventListener('click', ()=>{
+  document.getElementById('singularity').classList.remove('show');
+  document.getElementById('aperture').classList.remove('open');
+  setTimeout(()=>{ document.body.classList.remove('suction'); setScale(1); }, 300);
+});
+
+// ======== DEV TESTS (não interferem na UI) ========
+(function devTests(){
+  try{
+    console.assert(Array.isArray(phrases), 'phrases deve ser um array');
+    console.assert(phrases.length === 50, 'phrases deve conter 50 itens');
+    console.assert(typeof openPhrase === 'function', 'openPhrase deve existir');
+    console.assert(Array.isArray(love100), 'love100 deve ser um array');
+    console.log('ℹ️ love100 contém', love100.length, 'itens');
+    console.assert(Array.isArray(planets), 'planets deve existir');
+    console.assert(planets.length === phrases.length, 'planets deve ter o mesmo tamanho que phrases');
+    // teste simples: listeners criados
+    console.assert(typeof triggerSuction === 'function', 'triggerSuction deve existir');
+    console.log('✅ Dev tests OK');
+  }catch(e){
+    console.error('❌ Dev tests falharam:', e);
+  }
+})();
+</script>
+</body>
+</html>
